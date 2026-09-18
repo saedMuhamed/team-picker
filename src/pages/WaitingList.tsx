@@ -25,9 +25,7 @@ import { readableError } from '@/lib/supabase'
 import { S } from '@/lib/strings'
 import {
   customValue,
-  PAYMENT_STATUSES,
   PLAYER_LEVELS,
-  type PaymentStatus,
   type PlayerLevel,
   type WaitingPlayer,
 } from '@/lib/types'
@@ -37,12 +35,6 @@ const LEVEL_STYLE: Record<PlayerLevel, string> = {
   intermediate: 'bg-sky-100 text-sky-800',
   advanced: 'bg-violet-100 text-violet-800',
   pro: 'bg-amber-100 text-amber-900',
-}
-
-const PAYMENT_STYLE: Record<PaymentStatus, string> = {
-  paid: 'bg-emerald-100 text-emerald-800',
-  pending: 'bg-amber-100 text-amber-900',
-  unpaid: 'bg-red-100 text-red-800',
 }
 
 export function WaitingList() {
@@ -138,15 +130,13 @@ export function WaitingList() {
         <div className="overflow-x-auto">
           <table
             className="w-full border-collapse border-l border-t border-black bg-white"
-            style={{ minWidth: 860 + 150 * columns.length }}
+            style={{ minWidth: 640 + 150 * columns.length }}
           >
             <colgroup>
               <col style={{ width: 44 }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '36%' }} />
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '20%' }} />
               {columns.map((column) => (
                 <col key={column.id} style={{ width: '14%' }} />
               ))}
@@ -159,8 +149,6 @@ export function WaitingList() {
                 <th className="sheet-cell text-left font-normal">{S.col.name}</th>
                 <th className="sheet-cell text-left font-normal">Position</th>
                 <th className="sheet-cell text-left font-normal">{S.level}</th>
-                <th className="sheet-cell text-left font-normal">{S.payment}</th>
-                <th className="sheet-cell text-left font-normal">{S.amount}</th>
                 {columns.map((column) => (
                   <th
                     key={column.id}
@@ -246,77 +234,6 @@ export function WaitingList() {
                         className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_STYLE[entry.level]}`}
                       >
                         {S.levelLabel[entry.level]}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="sheet-cell">
-                    {isAdmin ? (
-                      <select
-                        className="sheet-input"
-                        value={entry.payment_status}
-                        aria-label={`${S.payment} ${index + 1}`}
-                        onChange={(e) =>
-                          updateField.mutate(
-                            {
-                              id: entry.id,
-                              field: 'payment_status',
-                              value: e.target.value,
-                            },
-                            { onError: fail },
-                          )
-                        }
-                      >
-                        {PAYMENT_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {S.paymentLabel[status]}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${PAYMENT_STYLE[entry.payment_status]}`}
-                      >
-                        {S.paymentLabel[entry.payment_status]}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="sheet-cell">
-                    {isAdmin ? (
-                      <EditableCell
-                        value={entry.amount === null ? '' : String(entry.amount)}
-                        placeholder="—"
-                        ariaLabel={`${S.amount} ${index + 1}`}
-                        onCommit={(v) => {
-                          const raw = v.trim()
-                          // Empty clears the field; anything unparseable is
-                          // rejected rather than silently stored as 0.
-                          if (raw === '') {
-                            updateField.mutate(
-                              { id: entry.id, field: 'amount', value: null },
-                              { onError: fail },
-                            )
-                            return
-                          }
-                          const parsed = Number(raw)
-                          if (!Number.isFinite(parsed) || parsed < 0) {
-                            toast('Enter a number, or leave it empty.', 'error')
-                            return
-                          }
-                          updateField.mutate(
-                            { id: entry.id, field: 'amount', value: parsed },
-                            { onError: fail },
-                          )
-                        }}
-                      />
-                    ) : (
-                      <span className="tabular-nums">
-                        {entry.amount === null ? (
-                          <span className="text-neutral-300">—</span>
-                        ) : (
-                          entry.amount
-                        )}
                       </span>
                     )}
                   </td>

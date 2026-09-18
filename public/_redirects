@@ -1,0 +1,8 @@
+# Client-side routing: the app owns /waiting, /team/:slug and /access, but
+# there is no file at those paths, so Netlify must hand every unmatched request
+# to index.html and let React Router sort it out. 200, not 301 — the URL in the
+# address bar has to stay where it is.
+#
+# Vite copies public/ into dist/ verbatim, so this lands at the site root.
+# Real files (assets, fonts) are served before this rule is ever consulted.
+/*    /index.html   200

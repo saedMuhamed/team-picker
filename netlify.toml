@@ -1,0 +1,19 @@
+# Netlify build settings, checked in so a fresh deploy needs no clicking about
+# in the dashboard.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 5 and the toolchain here need a modern Node; pin it so a Netlify
+  # default change cannot break the build later.
+  NODE_VERSION = "20"
+
+# Same rule as public/_redirects, for the case where that file is missing from
+# a build. Netlify applies _redirects first when both are present; they say the
+# same thing, so it makes no difference which wins.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

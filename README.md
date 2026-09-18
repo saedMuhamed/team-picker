@@ -11,7 +11,7 @@ Security) for everything else. No server of your own to run.
 - **Position 1 is always the captain.** Adding, deleting and reordering keep
   positions contiguous `1..n`.
 - **Waiting list** — one club-wide pool of players not yet picked, each with a
-  level and a payment status. The admin assigns one to a team in a click.
+  playing position and a level. The admin assigns one to a team in a click.
 - **Final teams** — finalizing freezes a roster in the database and unlocks
   its PDF. Nobody can edit it again until the admin reopens it.
 - **Custom columns** — the admin can add, rename and remove extra columns,
@@ -121,11 +121,24 @@ Supabase — which is the quickest way to check a layout change.
 
 Any static host works; the build output is `dist/`.
 
-**Vercel / Netlify:** build command `npm run build`, output directory `dist`.
-Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables.
-Because the app uses client-side routing, add a rewrite of all paths to
-`/index.html` (Netlify: a `_redirects` file with `/*  /index.html  200`;
-Vercel detects Vite and handles this automatically).
+**Netlify:** `netlify.toml` already sets the build command, the publish
+directory and the SPA rewrite, so a fresh site needs nothing configured by
+hand — except the two environment variables.
+
+**Vercel:** build command `npm run build`, output directory `dist`. It detects
+Vite and handles the rewrite itself.
+
+**Both:** add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` under the site's
+environment variables, then redeploy. They are read at *build* time, so a
+deploy that ran before you set them keeps the old values baked in and the app
+shows the setup notice — a rebuild is what picks them up, not a page refresh.
+
+The app uses client-side routing, so `/waiting` and `/team/white` are not files
+on disk. Without a rewrite of every unmatched path to `/index.html`, the host
+returns its own 404 for those URLs — that is what `public/_redirects` and the
+`[[redirects]]` block in `netlify.toml` are for. The 404 only appears on a
+hard load or refresh of a deep link; clicking through from the homepage works
+either way, which makes it easy to miss until someone bookmarks a page.
 
 The anon key is meant to be public — Row Level Security, not secrecy, is what
 protects the data. Never put the **service role** key in this app.
@@ -136,8 +149,17 @@ protects the data. Never put the **service role** key in this app.
 
 One global pool at `/waiting`, held in `public.waiting_list`. Everyone signed
 in can read it; only the admin can change it. Each entry carries a name, a
-playing position, a level (`beginner` / `intermediate` / `advanced` / `pro`), a
-payment status (`paid` / `pending` / `unpaid`) and an optional amount.
+playing position and a level (`beginner` / `intermediate` / `advanced` / `pro`).
+
+`payment_status` and `amount` still exist on the table but are no longer shown
+— the screen was too wide with them. To bring them back, add the two cells to
+`src/pages/WaitingList.tsx`; nothing was dropped. To retire them for good:
+
+```sql
+alter table public.waiting_list
+  drop column payment_status,
+  drop column amount;
+```
 
 **Assign to…** on a row calls `promote_waiting_player()`, which delegates to
 `add_player()` and then deletes the pool entry. Delegating rather than
