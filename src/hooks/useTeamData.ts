@@ -359,6 +359,102 @@ export function useAssignTeam() {
   })
 }
 
+/** Inline edit of one custom column's value on a roster row. */
+export function useUpdatePlayerCustom() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: PLAYER_WRITE_KEY,
+    mutationFn: async ({
+      id,
+      key,
+      value,
+    }: {
+      id: string
+      key: string
+      value: string
+    }) => {
+      const { error } = await supabase.rpc('set_player_custom', {
+        p_player_id: id,
+        p_key: key,
+        p_value: value,
+      })
+      if (error) throw error
+    },
+    onMutate: async ({ id, key, value }) => {
+      await queryClient.cancelQueries({ queryKey: PLAYERS_KEY })
+      const previous = queryClient.getQueryData<Player[]>(PLAYERS_KEY)
+      queryClient.setQueryData<Player[]>(PLAYERS_KEY, (old) =>
+        old?.map((p) =>
+          p.id === id ? { ...p, custom: { ...p.custom, [key]: value } } : p,
+        ),
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(PLAYERS_KEY, context.previous)
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: PLAYERS_KEY })
+    },
+  })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Finalizing                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Admin-only lock. Once set, can_edit_team() in the database returns false for
+ * this team no matter who asks, so every write path refuses at once — the UI
+ * going read-only is the visible half of a rule the database enforces anyway.
+ */
+export function useFinalizeTeam() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ teamId, final }: { teamId: string; final: boolean }) => {
+      const { data, error } = await supabase.rpc(
+        final ? 'finalize_team' : 'unfinalize_team',
+        { p_team_id: teamId },
+      )
+      if (error) throw error
+      return data as Team
+    },
+    onSuccess: (team) => {
+      queryClient.setQueryData<Team[]>(TEAMS_KEY, (old) =>
+        old?.map((t) => (t.id === team.id ? team : t)),
+      )
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: TEAMS_KEY })
+    },
+  })
+}
+
+/** Live team changes, so a captain sees their team lock without reloading. */
+export function useTeamsRealtime(enabled: boolean) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!enabled) return
+    const channel = supabase
+      .channel('teams-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams' },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: TEAMS_KEY })
+        },
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [enabled, queryClient])
+}
+
 /** How many roster writes are in flight — drives the Saving…/Saved chip. */
 export function usePendingWrites() {
   return useIsMutating({ mutationKey: PLAYER_WRITE_KEY })

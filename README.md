@@ -10,6 +10,12 @@ Security) for everything else. No server of your own to run.
   rights per captain, and that permission is enforced by the database.
 - **Position 1 is always the captain.** Adding, deleting and reordering keep
   positions contiguous `1..n`.
+- **Waiting list** — one club-wide pool of players not yet picked, each with a
+  level and a payment status. The admin assigns one to a team in a click.
+- **Final teams** — finalizing freezes a roster in the database and unlocks
+  its PDF. Nobody can edit it again until the admin reopens it.
+- **Custom columns** — the admin can add, rename and remove extra columns,
+  shared by every roster and the waiting list.
 - **PDF export** — one team per page, matching the paper sheets: coloured
   header band, five columns (`No`, `Magaca`, `Xaalada`, `Joogtaynta`,
   `Heerka Kubada`), full black grid, and empty numbered rows for the slots you
@@ -23,26 +29,55 @@ Security) for everything else. No server of your own to run.
    URL and the **anon public** key from **Project Settings → API**.
 2. Open **SQL Editor** and run, in this order:
    - `supabase/migrations/0001_init.sql` — tables, RLS policies, RPCs
+   - `supabase/migrations/0002_features.sql` — waiting list, final teams,
+     custom columns
    - `supabase/seed.sql` — the six teams and the rosters from the paper sheets
+   - `supabase/users.sql` — the six captain accounts
 
    (With the Supabase CLI instead: `supabase db push`, then
-   `psql "$DATABASE_URL" -f supabase/seed.sql`.)
+   `psql "$DATABASE_URL" -f supabase/seed.sql -f supabase/users.sql`.)
+
+   `0002` replaces `can_edit_team()` and one policy from `0001`, so if you ever
+   re-run `0001` on its own, re-run `0002` after it — otherwise the
+   finalized-team lock quietly stops working.
 
 Re-running the seed resets every roster back to the original names, so do it
 only on a fresh project or when you deliberately want to start over.
 
-## 2. Create the seven accounts
+## 2. Accounts
 
-Go to **Authentication → Users → Add user**, and create seven users with
-**Auto Confirm User** switched on:
+### The six captains
 
-| Email | Becomes |
+`supabase/users.sql` creates them, already pointed at their teams:
+
+| Username | Team |
 |---|---|
-| your own email | admin |
-| six captain emails | one per team |
+| `cabdimahad` | White |
+| `luqmancaduur` | Yellow |
+| `xatto` | Blue |
+| `fuaad` | Green |
+| `aleeli` | Black |
+| `bulaale` | Red |
 
-A database trigger creates a matching `profiles` row for each new user as a
-view-only captain with no team. Then promote yourself to admin — **SQL Editor**:
+They sign in with the **username**, not an email. Supabase Auth only knows how
+to look people up by email, so the app appends `@teampicker.local` on submit —
+`xatto` is stored as `xatto@teampicker.local`. That domain is
+`USERNAME_DOMAIN` in `src/lib/config.ts`; changing it after the accounts exist
+locks everyone out, so change `supabase/users.sql` too and re-run it.
+
+Passwords are hashed with bcrypt by `crypt()`/`gen_salt('bf')` — the plain text
+never reaches the database. It *is* in `supabase/users.sql`, which is why that
+file is gitignored. Change the passwords once everyone has signed in once.
+Re-running the script resets the six passwords, which is the quickest way to
+recover a locked-out captain; it leaves `can_edit` alone.
+
+All six start **view-only**. Turn editing on per captain from the **Access**
+screen; it takes effect on their next load or window focus.
+
+### Yourself, as admin
+
+Create your own account at **Authentication → Users → Add user** with **Auto
+Confirm User** switched on, then promote it — **SQL Editor**:
 
 ```sql
 update public.profiles
@@ -50,17 +85,15 @@ set role = 'admin', team_id = null
 where email = 'you@example.com';
 ```
 
-Assign the captains to their teams from inside the app (**Access** screen), or
-in SQL if you prefer:
+A database trigger created the `profiles` row when the user was added. If that
+select comes back empty, the user predates `0001_init.sql`; backfill with:
 
 ```sql
-update public.profiles
-set team_id = (select id from public.teams where slug = 'white')
-where email = 'white-captain@example.com';
+insert into public.profiles (id, email, full_name, role)
+select id, email, split_part(email, '@', 1), 'admin'
+from auth.users where email = 'you@example.com'
+on conflict (id) do update set role = 'admin', team_id = null;
 ```
-
-Leave `can_edit` off until you want that captain to be able to change their
-roster. You flip it on the Access screen, and it takes effect immediately.
 
 ## 3. Run the app
 
@@ -99,6 +132,60 @@ protects the data. Never put the **service role** key in this app.
 
 ---
 
+## The waiting list
+
+One global pool at `/waiting`, held in `public.waiting_list`. Everyone signed
+in can read it; only the admin can change it. Each entry carries a name, a
+playing position, a level (`beginner` / `intermediate` / `advanced` / `pro`), a
+payment status (`paid` / `pending` / `unpaid`) and an optional amount.
+
+**Assign to…** on a row calls `promote_waiting_player()`, which delegates to
+`add_player()` and then deletes the pool entry. Delegating rather than
+inserting directly is the point: the roster limit, the finalized-team lock and
+the contiguous `1..n` positions stay enforced by the code that already owns
+those rules, and the entry only leaves the pool once the player has landed. A
+team that is full or finalized is disabled in the dropdown, and refused by the
+database besides.
+
+## Final teams
+
+`teams.is_final` is the lock. `can_edit_team()` returns false for a finalized
+team no matter who asks, so every write path — the `players` policies and the
+`add_player` / `delete_player` / `reorder_players` / `set_player_custom` RPCs —
+refuses at once, and `roster_size` freezes with it. The UI going read-only is
+the visible half of a rule the database enforces anyway.
+
+Only the admin can finalize (`finalize_team()`, which needs at least one player
+on the roster) or reopen (`unfinalize_team()`). Both are `SECURITY DEFINER`, so
+they are the only way past the policy that otherwise blocks updates to a final
+team.
+
+A team must be final before its sheet can be exported — on its own page, on its
+dashboard card, and in **Download all**, which prints the finalized teams and
+says so in its label. Set `REQUIRE_FINAL_FOR_PDF` to `false` in
+`src/lib/config.ts` to allow printing drafts.
+
+## Custom columns
+
+One global set in `public.custom_columns`, shared by every roster and the
+waiting list, managed by the admin from the **Columns** panel on any team page
+or the waiting list.
+
+Values live in a `jsonb` bag on `players.custom` and `waiting_list.custom`,
+keyed by `custom_columns.key`. The key is generated from the first label and
+never changes, so **renaming a column touches no data at all**. Removing one
+deletes the definition *and* strips its key out of every stored bag, so nothing
+lingers to resurface if a later column is given the same name — that is why
+removal asks for confirmation.
+
+Adding a column is a metadata insert rather than `alter table`, which matters
+here: the roster tables are under row level security with column-level grants,
+and a schema change per column would have to keep both in step.
+
+These columns are **screen only**. The printed sheet keeps its five paper
+columns at their exact widths; on screen the five narrow evenly to make room
+and the table scrolls sideways rather than squeezing past legibility.
+
 ## How permissions work
 
 Two SQL helpers back every policy:
@@ -125,14 +212,18 @@ still checked at commit.
 src/
   auth/AuthProvider.tsx     session + profile, isAdmin, canEditTeam()
   components/               layout, roster table, editable cell, dialogs, toasts
-  hooks/useTeamData.ts      all queries and mutations, optimistic + realtime
+  components/ColumnManager  add / rename / remove the custom columns
+  hooks/useTeamData.ts      teams + rosters, finalizing, optimistic + realtime
+  hooks/useWaitingList.ts   the pool, and promoting out of it
+  hooks/useCustomColumns.ts the global column definitions
   lib/                      supabase client, types, strings, config
-  pages/                    Login, Dashboard, TeamView, Access, fallbacks
+  pages/                    Login, Dashboard, TeamView, WaitingList, Access
   pdf/TeamSheet.tsx         the printed sheet — single source of truth
   pdf/export.tsx            single-team and all-teams downloads
   pdf/lazy.ts               loads the PDF renderer on first download
 supabase/migrations/        schema, RLS, RPCs
 supabase/seed.sql           six teams + rosters
+supabase/users.sql          the six captain accounts (gitignored)
 scripts/preview-sheets.tsx  render sheets to PDF from the command line
 public/fonts/               Poppins (OFL), embedded in the PDF
 ```

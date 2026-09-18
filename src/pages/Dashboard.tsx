@@ -3,8 +3,14 @@ import { useAuth } from '@/auth/AuthProvider'
 import { HeaderBand } from '@/components/HeaderBand'
 import { PdfButton } from '@/components/PdfButton'
 import { TeamCardSkeleton } from '@/components/Skeleton'
-import { usePlayers, usePlayersRealtime, useTeams } from '@/hooks/useTeamData'
-import { PRINT_CAPTAIN_MARK } from '@/lib/config'
+import { Lock } from '@/components/icons'
+import {
+  usePlayers,
+  usePlayersRealtime,
+  useTeams,
+  useTeamsRealtime,
+} from '@/hooks/useTeamData'
+import { PRINT_CAPTAIN_MARK, REQUIRE_FINAL_FOR_PDF } from '@/lib/config'
 import { exportAllTeamSheets, exportTeamSheet } from '@/pdf/lazy'
 import { readableError } from '@/lib/supabase'
 import { S } from '@/lib/strings'
@@ -14,11 +20,16 @@ export function Dashboard() {
   const teamsQuery = useTeams()
   const playersQuery = usePlayers()
   usePlayersRealtime(true)
+  useTeamsRealtime(true)
 
   const teams = teamsQuery.data ?? []
   const players = playersQuery.data ?? []
   const loading = teamsQuery.isLoading || playersQuery.isLoading
   const error = teamsQuery.error ?? playersQuery.error
+
+  // "Download all" prints the sheets that are ready. With the gate off that is
+  // every team; with it on, only the finalized ones.
+  const printable = REQUIRE_FINAL_FOR_PDF ? teams.filter((t) => t.is_final) : teams
 
   if (error) {
     return (
@@ -45,16 +56,25 @@ export function Dashboard() {
         <PdfButton
           variant="primary"
           className="ml-auto"
-          disabled={loading || teams.length === 0}
+          disabled={loading || printable.length === 0}
+          title={printable.length === 0 ? S.noFinalTeams : undefined}
           onExport={() =>
-            exportAllTeamSheets(teams, players, {
+            exportAllTeamSheets(printable, players, {
               markCaptain: PRINT_CAPTAIN_MARK,
             })
           }
         >
-          {S.downloadAll}
+          {REQUIRE_FINAL_FOR_PDF && printable.length > 0
+            ? `${S.downloadAll} · ${printable.length}`
+            : S.downloadAll}
         </PdfButton>
       </div>
+
+      {!loading && REQUIRE_FINAL_FOR_PDF && printable.length === 0 && (
+        <p className="mb-4 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-500">
+          {S.noFinalTeams} {S.pdfNeedsFinal}.
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading &&
@@ -79,11 +99,23 @@ export function Dashboard() {
                 <HeaderBand team={team} size="sm" />
 
                 <div className="p-4">
-                  {isMine && (
-                    <span className="mb-2 inline-block rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white">
-                      {S.yourTeam}
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {isMine && (
+                      <span className="inline-block rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white">
+                        {S.yourTeam}
+                      </span>
+                    )}
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                        team.is_final
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-neutral-100 text-neutral-500'
+                      }`}
+                    >
+                      {team.is_final && <Lock className="h-3 w-3" />}
+                      {team.is_final ? S.final : S.draft}
                     </span>
-                  )}
+                  </div>
 
                   <dl className="space-y-1 text-sm">
                     <div className="flex justify-between gap-2">
@@ -105,6 +137,12 @@ export function Dashboard() {
                       {editable ? 'Open' : S.view}
                     </Link>
                     <PdfButton
+                      disabled={REQUIRE_FINAL_FOR_PDF && !team.is_final}
+                      title={
+                        REQUIRE_FINAL_FOR_PDF && !team.is_final
+                          ? S.pdfNeedsFinal
+                          : undefined
+                      }
                       onExport={() =>
                         exportTeamSheet(team, players, {
                           markCaptain: PRINT_CAPTAIN_MARK,

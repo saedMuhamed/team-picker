@@ -10,6 +10,8 @@ interface Props {
   variant?: 'primary' | 'ghost'
   className?: string
   disabled?: boolean
+  /** Hover text — worth setting when `disabled`, to say why. */
+  title?: string
 }
 
 /** Download button that renders the PDF in the browser and reports failures. */
@@ -19,6 +21,7 @@ export function PdfButton({
   variant = 'ghost',
   className = '',
   disabled = false,
+  title,
 }: Props) {
   const [busy, setBusy] = useState(false)
   const toast = useToast()
@@ -28,6 +31,7 @@ export function PdfButton({
       type="button"
       className={`${variant === 'primary' ? 'btn-primary' : 'btn-ghost'} ${className}`}
       disabled={busy || disabled}
+      title={title}
       onClick={async () => {
         setBusy(true)
         try {

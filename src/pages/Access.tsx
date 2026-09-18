@@ -6,6 +6,7 @@ import {
   useSetCanEdit,
   useTeams,
 } from '@/hooks/useTeamData'
+import { toDisplayName } from '@/lib/config'
 import { readableError } from '@/lib/supabase'
 import { S } from '@/lib/strings'
 
@@ -52,10 +53,12 @@ export function Access() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">
-                      {captain.full_name || captain.email}
+                      {captain.full_name || toDisplayName(captain.email)}
                     </p>
+                    {/* Captains sign in with a username; the synthetic
+                        @teampicker.local address is noise on screen. */}
                     <p className="truncate text-xs text-neutral-500">
-                      {captain.email}
+                      {toDisplayName(captain.email)}
                     </p>
                     {!captain.team_id && (
                       <p className="mt-1 text-xs text-amber-600">

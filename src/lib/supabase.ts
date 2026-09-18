@@ -40,7 +40,11 @@ export function readableError(error: unknown): string {
     team_not_found: 'That team no longer exists.',
     player_not_found: 'That player has already been removed.',
     ordering_mismatch: 'The roster changed while you were reordering. Reloading.',
-    'Invalid login credentials': 'Wrong email or password.',
+    roster_empty: 'Add at least one player before finalizing this team.',
+    label_required: 'A column name is required.',
+    column_not_found: 'That column has already been removed.',
+    waiting_not_found: 'That player is no longer on the waiting list.',
+    'Invalid login credentials': 'Wrong username or password.',
   }
 
   for (const [needle, message] of Object.entries(known)) {

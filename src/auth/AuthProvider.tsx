@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toLoginEmail } from '@/lib/config'
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/lib/types'
 
@@ -20,7 +21,8 @@ interface AuthValue {
   isAdmin: boolean
   /** Mirrors the database's can_edit_team() so the UI and RLS agree. */
   canEditTeam: (teamId: string | null | undefined) => boolean
-  signIn: (email: string, password: string) => Promise<void>
+  /** Accepts a bare username or a full email address. */
+  signIn: (identifier: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   refreshProfile: () => void
 }
@@ -92,9 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [profile],
   )
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  /**
+   * Takes a username or an email. Captains have no real address, so a bare
+   * username is expanded to <username>@teampicker.local before it reaches
+   * Supabase Auth, which only knows how to look people up by email.
+   */
+  const signIn = useCallback(async (identifier: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: toLoginEmail(identifier),
       password,
     })
     if (error) throw error

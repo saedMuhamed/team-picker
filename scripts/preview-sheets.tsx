@@ -17,12 +17,12 @@ const root = process.cwd()
 registerSheetFonts(path.join(root, 'public', 'fonts'))
 
 const TEAMS: Array<Omit<Team, 'id'> & { id: string }> = [
-  { id: 't1', slug: 'white', display_name: 'KOOXDA WHITE TEAM', color_hex: '#FFFFFF', text_hex: '#000000', roster_size: 9, sort_order: 1 },
-  { id: 't2', slug: 'yellow', display_name: 'KOOXDA YELLOW TEAM', color_hex: '#FFFF00', text_hex: '#000000', roster_size: 9, sort_order: 2 },
-  { id: 't3', slug: 'blue', display_name: 'KOOXDA BLUE TEAM', color_hex: '#0B5FFF', text_hex: '#FFFFFF', roster_size: 10, sort_order: 3 },
-  { id: 't4', slug: 'green', display_name: 'KOOXDA GREEN TEAM', color_hex: '#00A94F', text_hex: '#FFFFFF', roster_size: 9, sort_order: 4 },
-  { id: 't5', slug: 'black', display_name: 'KOOXDA BLACK TEAM', color_hex: '#111111', text_hex: '#FFFFFF', roster_size: 9, sort_order: 5 },
-  { id: 't6', slug: 'red', display_name: 'KOOXDA RED TEAM', color_hex: '#F20D1B', text_hex: '#FFFFFF', roster_size: 9, sort_order: 6 },
+  { id: 't1', slug: 'white', display_name: 'KOOXDA WHITE TEAM', color_hex: '#FFFFFF', text_hex: '#000000', roster_size: 9, sort_order: 1, is_final: true, finalized_at: null, finalized_by: null },
+  { id: 't2', slug: 'yellow', display_name: 'KOOXDA YELLOW TEAM', color_hex: '#FFFF00', text_hex: '#000000', roster_size: 9, sort_order: 2, is_final: true, finalized_at: null, finalized_by: null },
+  { id: 't3', slug: 'blue', display_name: 'KOOXDA BLUE TEAM', color_hex: '#0B5FFF', text_hex: '#FFFFFF', roster_size: 10, sort_order: 3, is_final: true, finalized_at: null, finalized_by: null },
+  { id: 't4', slug: 'green', display_name: 'KOOXDA GREEN TEAM', color_hex: '#00A94F', text_hex: '#FFFFFF', roster_size: 9, sort_order: 4, is_final: true, finalized_at: null, finalized_by: null },
+  { id: 't5', slug: 'black', display_name: 'KOOXDA BLACK TEAM', color_hex: '#111111', text_hex: '#FFFFFF', roster_size: 9, sort_order: 5, is_final: true, finalized_at: null, finalized_by: null },
+  { id: 't6', slug: 'red', display_name: 'KOOXDA RED TEAM', color_hex: '#F20D1B', text_hex: '#FFFFFF', roster_size: 9, sort_order: 6, is_final: true, finalized_at: null, finalized_by: null },
 ]
 
 const ROSTERS: Record<string, string[]> = {
@@ -52,6 +52,7 @@ function toPlayer(teamId: string, name: string, position: number): Player {
     xaalada: extra?.[0] ?? '',
     joogtaynta: extra?.[1] ?? '',
     heerka_kubada: extra?.[2] ?? '',
+    custom: {},
     created_at: '',
     updated_at: '',
   }

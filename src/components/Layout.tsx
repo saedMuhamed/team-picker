@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthProvider'
+import { toDisplayName } from '@/lib/config'
 import { S } from '@/lib/strings'
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -37,6 +38,19 @@ export function Layout({ children }: { children: ReactNode }) {
               {S.dashboard}
             </NavLink>
 
+            <NavLink
+              to="/waiting"
+              className={({ isActive }) =>
+                `rounded-lg px-3 py-1.5 text-sm transition ${
+                  isActive
+                    ? 'bg-neutral-100 font-medium text-ink'
+                    : 'text-neutral-600 hover:text-ink'
+                }`
+              }
+            >
+              {S.waitingList}
+            </NavLink>
+
             {isAdmin && (
               <NavLink
                 to="/access"
@@ -55,7 +69,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
           <div className="ml-2 hidden items-center gap-2 border-l border-neutral-200 pl-3 sm:flex">
             <span className="max-w-[10rem] truncate text-sm text-neutral-500">
-              {profile?.full_name || profile?.email}
+              {profile?.full_name || toDisplayName(profile?.email)}
             </span>
             {isAdmin && (
               <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white">

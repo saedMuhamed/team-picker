@@ -14,6 +14,7 @@ import {
 } from '@/pages/Fallbacks'
 import { Login } from '@/pages/Login'
 import { TeamView } from '@/pages/TeamView'
+import { WaitingList } from '@/pages/WaitingList'
 
 function RequireAuth({
   children,
@@ -53,6 +54,14 @@ function Router() {
         element={
           <RequireAuth>
             <TeamView />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/waiting"
+        element={
+          <RequireAuth>
+            <WaitingList />
           </RequireAuth>
         }
       />

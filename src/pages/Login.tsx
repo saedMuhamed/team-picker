@@ -6,7 +6,7 @@ import { S } from '@/lib/strings'
 
 export function Login() {
   const { session, signIn } = useAuth()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -18,7 +18,7 @@ export function Login() {
     setError(null)
     setBusy(true)
     try {
-      await signIn(email, password)
+      await signIn(identifier, password)
     } catch (err) {
       setError(readableError(err))
     } finally {
@@ -47,20 +47,26 @@ export function Login() {
         >
           <div>
             <label
-              htmlFor="email"
+              htmlFor="identifier"
               className="mb-1 block text-sm font-medium text-neutral-700"
             >
-              {S.email}
+              {S.username}
             </label>
+            {/* Deliberately type="text": captains type a username, not an
+                address, and type="email" would reject it before submit. */}
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-ink"
             />
+            <p className="mt-1 text-xs text-neutral-400">{S.usernameHint}</p>
           </div>
 
           <div>

@@ -3,15 +3,23 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EditableCell } from '@/components/EditableCell'
 import { ArrowDown, ArrowUp, Plus, Trash } from '@/components/icons'
 import { useToast } from '@/components/Toast'
+import { useCustomColumns } from '@/hooks/useCustomColumns'
 import {
   useAddPlayer,
   useDeletePlayer,
   useReorderPlayers,
+  useUpdatePlayerCustom,
   useUpdatePlayerField,
 } from '@/hooks/useTeamData'
 import { readableError } from '@/lib/supabase'
 import { S } from '@/lib/strings'
-import { toSheetRows, type Player, type PlayerField, type Team } from '@/lib/types'
+import {
+  customValue,
+  toSheetRows,
+  type Player,
+  type PlayerField,
+  type Team,
+} from '@/lib/types'
 
 interface Props {
   team: Team
@@ -19,9 +27,19 @@ interface Props {
   canEdit: boolean
 }
 
+/* The five paper columns keep these proportions on their own. Each custom
+   column takes a share of the same 88%, so the sheet columns narrow evenly
+   rather than one of them absorbing the whole cost. */
+const BASE_PERCENTS = { name: 31, xaalada: 18, joogtaynta: 18, heerka: 21 }
+const CUSTOM_PERCENT = 14
+const BASE_MIN_WIDTH = 720
+const CUSTOM_MIN_WIDTH = 150
+
 export function RosterTable({ team, players, canEdit }: Props) {
   const toast = useToast()
+  const columnsQuery = useCustomColumns()
   const updateField = useUpdatePlayerField()
+  const updateCustom = useUpdatePlayerCustom()
   const addPlayer = useAddPlayer()
   const deletePlayer = useDeletePlayer()
   const reorderPlayers = useReorderPlayers()
@@ -33,9 +51,15 @@ export function RosterTable({ team, players, canEdit }: Props) {
     orderedIds: string[]
   } | null>(null)
 
+  const columns = columnsQuery.data ?? []
   const rows = toSheetRows(players, team.roster_size)
   const isFull = players.length >= team.roster_size
   const addSlot = canEdit && !isFull ? players.length + 1 : null
+
+  // Keep the whole row at 88% + the 52px number column, whatever the count.
+  const scale = 88 / (88 + CUSTOM_PERCENT * columns.length)
+  const pct = (n: number) => `${(n * scale).toFixed(3)}%`
+  const minWidth = BASE_MIN_WIDTH + CUSTOM_MIN_WIDTH * columns.length
 
   const fail = (error: unknown) => toast(readableError(error), 'error')
 
@@ -85,13 +109,19 @@ export function RosterTable({ team, players, canEdit }: Props) {
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse border-l border-t border-black bg-white">
+        <table
+          className="w-full border-collapse border-l border-t border-black bg-white"
+          style={{ minWidth }}
+        >
           <colgroup>
             <col style={{ width: 52 }} />
-            <col style={{ width: '31%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '21%' }} />
+            <col style={{ width: pct(BASE_PERCENTS.name) }} />
+            <col style={{ width: pct(BASE_PERCENTS.xaalada) }} />
+            <col style={{ width: pct(BASE_PERCENTS.joogtaynta) }} />
+            <col style={{ width: pct(BASE_PERCENTS.heerka) }} />
+            {columns.map((column) => (
+              <col key={column.id} style={{ width: pct(CUSTOM_PERCENT) }} />
+            ))}
             {canEdit && <col style={{ width: 104 }} />}
           </colgroup>
 
@@ -106,6 +136,15 @@ export function RosterTable({ team, players, canEdit }: Props) {
               <th className="sheet-cell text-left font-normal">
                 {S.col.heerkaKubada}
               </th>
+              {columns.map((column) => (
+                <th
+                  key={column.id}
+                  className="sheet-cell text-left font-normal text-neutral-600"
+                  title={`${column.label} — screen only, not printed`}
+                >
+                  {column.label}
+                </th>
+              ))}
               {canEdit && (
                 <th className="sheet-cell text-left font-normal">
                   <span className="sr-only">Actions</span>
@@ -169,6 +208,21 @@ export function RosterTable({ team, players, canEdit }: Props) {
                         onCommit={(v) => commitField(player, 'heerka_kubada', v)}
                       />
                     </td>
+                    {columns.map((column) => (
+                      <td key={column.id} className="sheet-cell">
+                        <EditableCell
+                          value={customValue(player.custom, column.key)}
+                          disabled={!canEdit}
+                          ariaLabel={`${column.label} ${row.position}`}
+                          onCommit={(v) =>
+                            updateCustom.mutate(
+                              { id: player.id, key: column.key, value: v },
+                              { onError: fail },
+                            )
+                          }
+                        />
+                      </td>
+                    ))}
                     {canEdit && (
                       <td className="sheet-cell">
                         <div className="flex items-center gap-1">
@@ -215,7 +269,7 @@ export function RosterTable({ team, players, canEdit }: Props) {
                     <td className="sheet-cell text-right tabular-nums text-neutral-400">
                       {row.position}
                     </td>
-                    <td className="sheet-cell" colSpan={4}>
+                    <td className="sheet-cell" colSpan={4 + columns.length}>
                       <div className="flex items-center gap-2">
                         <input
                           className="sheet-input flex-1"
@@ -259,6 +313,9 @@ export function RosterTable({ team, players, canEdit }: Props) {
                   <td className="sheet-cell" />
                   <td className="sheet-cell" />
                   <td className="sheet-cell" />
+                  {columns.map((column) => (
+                    <td key={column.id} className="sheet-cell" />
+                  ))}
                   {canEdit && <td className="sheet-cell" />}
                 </tr>
               )
